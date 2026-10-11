@@ -11,8 +11,14 @@ ENV PATH="/usr/local/cargo/bin:${PATH}"
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV CARGO_HOME=/usr/local/cargo
 
-# Install system utilities
-RUN apt-get update && apt-get install -y curl git build-essential binaryen && apt-get clean
+# Install system utilities (Removed binaryen from apt-get)
+RUN apt-get update && apt-get install -y curl git build-essential wget && apt-get clean
+
+# FIX: Install a modern, pre-compiled version of binaryen (wasm-opt) that supports anyref
+RUN wget https://github.com \
+    && tar -xvzf binaryen-version_116-x86_64-linux.tar.gz \
+    && mv binaryen-version_116/bin/wasm-opt /usr/local/bin/ \
+    && rm -rf binaryen-version_116*
 
 # Force cargo to use historical locked dependency versions instead of fetching bleeding-edge updates
 RUN cargo install wasm-bindgen-cli --version 0.2.105 --locked
@@ -37,9 +43,6 @@ RUN pnpm install
 
 # Copy the rest of the application source code
 COPY . .
-
-# CRITICAL FIX: Turn off Reference Types (anyref) so the post-processors don't fail
-ENV RUSTFLAGS="-C target-feature=-reference-types"
 
 # Execute the compile order required by Scramjet
 RUN cd packages/core && pnpm rewriter:build
