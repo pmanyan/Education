@@ -1,4 +1,4 @@
-# Start directly with a modern Rust environment that satisfies wasm-bindgen's compiler requirements
+# Start directly with a modern Rust environment
 FROM rust:1.85-slim AS rust-env
 
 # Bring in Node.js 24 environment securely
@@ -14,9 +14,9 @@ ENV CARGO_HOME=/usr/local/cargo
 # Install system utilities
 RUN apt-get update && apt-get install -y curl git build-essential binaryen && apt-get clean
 
-# Install the exact WebAssembly tool versions required by Scramjet
-RUN cargo install wasm-bindgen-cli --version 0.2.105
-RUN cargo install wasm-snip
+# Force cargo to use historical locked dependency versions instead of fetching bleeding-edge updates
+RUN cargo install wasm-bindgen-cli --version 0.2.105 --locked
+RUN cargo install wasm-snip --locked
 
 # Set up pnpm
 RUN npm install -g pnpm
