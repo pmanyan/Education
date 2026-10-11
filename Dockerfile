@@ -1,26 +1,18 @@
-# Start directly with a modern Rust environment
-FROM rust:1.85-slim AS rust-env
+# ==========================================
+# STAGE 1: Setup Tooling Environment
+# ==========================================
+FROM rust:1.85-slim AS toolchain-env
 
-# Bring in Node.js 24 environment securely
-FROM node:24-slim AS builder
-
-# Copy Rust compiler binaries and tools over from our Rust base image
-COPY --from=rust-env /usr/local/cargo /usr/local/cargo
-COPY --from=rust-env /usr/local/rustup /usr/local/rustup
-ENV PATH="/usr/local/cargo/bin:${PATH}"
-ENV RUSTUP_HOME=/usr/local/rustup
-ENV CARGO_HOME=/usr/local/cargo
-
-# Install system utilities (Removed binaryen from apt-get)
+# Install system build utilities
 RUN apt-get update && apt-get install -y curl git build-essential wget && apt-get clean
 
 # FIX: Install a modern, pre-compiled version of binaryen (wasm-opt) that supports anyref
-RUN wget https://github.com \
+RUN wget "https://github.com" \
     && tar -xvzf binaryen-version_116-x86_64-linux.tar.gz \
     && mv binaryen-version_116/bin/wasm-opt /usr/local/bin/ \
     && rm -rf binaryen-version_116*
 
-# Force cargo to use historical locked dependency versions instead of fetching bleeding-edge updates
+# Install specific tooling binary dependencies (Cached heavily by Render)
 RUN cargo install wasm-bindgen-cli --version 0.2.105 --locked
 RUN cargo install wasm-snip --locked
 
@@ -28,34 +20,58 @@ RUN cargo install wasm-snip --locked
 RUN rustup toolchain install nightly
 RUN rustup component add rust-src --toolchain nightly
 
-# Set up pnpm
+
+# ==========================================
+# STAGE 2: App Builder (Isolating Package Changes)
+# ==========================================
+FROM node:24-slim AS builder
+
+# Securely inherit Rust compiler binaries and tools from the toolchain environment stage
+COPY --from=toolchain-env /usr/local/cargo /usr/local/cargo
+COPY --from=toolchain-env /usr/local/rustup /usr/local/rustup
+COPY --from=toolchain-env /usr/local/bin/wasm-opt /usr/local/bin/wasm-opt
+
+ENV PATH="/usr/local/cargo/bin:${PATH}"
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+
+# Ensure core base native compilations utilities exist in node stage
+RUN apt-get update && apt-get install -y git build-essential && apt-get clean
 RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy dependency configs, workspace maps, and required engine patches
+# CACHE LAYER: Copy ONLY dependency definitions first
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
 COPY patches ./patches
 
-# Install Node dependencies with patches available
-RUN pnpm install
+# Install Node dependencies (Will skip completely if locks/packages didn't change)
+RUN pnpm install --frozen-lockfile
 
 # Copy the rest of the application source code
 COPY . .
 
-# Execute the compile order required by Scramjet
+# Execute compilation pipeline
 RUN cd packages/core && pnpm rewriter:build
 RUN pnpm build
 
-# Final production stage
-FROM node:24-slim
-RUN npm install -g pnpm
-WORKDIR /app
+# ==========================================
+# STAGE 3: Slim Production Runtime
+# ==========================================
+FROM node:24-slim AS runner
 
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Install only production runner tool
+RUN npm install -g pnpm
+
+# Pull only the compiled /app output from builder, keeping the image small
 COPY --from=builder /app /app
 
 EXPOSE 4141
 
 # Start the proxy app
 CMD ["pnpm", "dev"]
+
