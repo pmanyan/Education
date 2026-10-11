@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y curl git build-essential binaryen && ap
 RUN cargo install wasm-bindgen-cli --version 0.2.105 --locked
 RUN cargo install wasm-snip --locked
 
+# Install the exact Nightly toolchain and source code modules requested by Scramjet
+RUN rustup toolchain install nightly
+RUN rustup component add rust-src --toolchain nightly
+
 # Set up pnpm
 RUN npm install -g pnpm
 
