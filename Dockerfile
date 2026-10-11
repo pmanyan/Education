@@ -1,16 +1,21 @@
-# Multi-stage build to keep the final image clean
+# Start directly with a production-ready Rust + Node environment to bypass installer scripts
+FROM rust:1.80-slim AS rust-env
+
+# Bring in Node.js 24 environment securely
 FROM node:24-slim AS builder
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y curl git build-essential && apt-get clean
+# Copy Rust compiler binaries and tools over from our Rust base image
+COPY --from=rust-env /usr/local/cargo /usr/local/cargo
+COPY --from=rust-env /usr/local/rustup /usr/local/rustup
+ENV PATH="/usr/local/cargo/bin:${PATH}"
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
 
-# Download and run the official rustup script safely
-RUN curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Install system utilities
+RUN apt-get update && apt-get install -y curl git build-essential binaryen && apt-get clean
 
-# Install the exact WebAssembly tool version required by Scramjet
+# Install the exact WebAssembly tool versions required by Scramjet
 RUN cargo install wasm-bindgen-cli --version 0.2.105
-RUN apt-get install -y binaryen
 RUN cargo install wasm-snip
 
 # Set up pnpm
@@ -18,7 +23,7 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy dependency configs, workspace maps, AND required engine patches
+# Copy dependency configs, workspace maps, and required engine patches
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
 COPY patches ./patches
@@ -44,4 +49,3 @@ EXPOSE 4141
 
 # Start the proxy app
 CMD ["pnpm", "dev"]
-
