@@ -4,12 +4,12 @@ FROM node:24-slim AS builder
 # Install system dependencies
 RUN apt-get update && apt-get install -y curl git build-essential && apt-get clean
 
-# Download and run the official rustup script safely from the correct script URL
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Download and run the official rustup script safely
+RUN curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install WebAssembly tools required by Scramjet
-RUN cargo install wasm-bindgen-cli
+# Install the exact WebAssembly tool version required by Scramjet
+RUN cargo install wasm-bindgen-cli --version 0.2.105
 RUN apt-get install -y binaryen
 RUN cargo install wasm-snip
 
