@@ -5,7 +5,7 @@ FROM node:24-slim AS builder
 RUN apt-get update && apt-get install -y curl git build-essential && apt-get clean
 
 # Download and run the official rustup script safely
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN curl --proto '=https' --tlsv1.2 -sSf https://rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Install WebAssembly tools required by Scramjet
@@ -18,11 +18,12 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy dependency files
+# Copy dependency configs, workspace maps, AND required engine patches
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/core/package.json ./packages/core/
+COPY patches ./patches
 
-# Install Node dependencies
+# Install Node dependencies with patches available
 RUN pnpm install
 
 # Copy the rest of the application source code
