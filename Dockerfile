@@ -1,5 +1,5 @@
-# Start directly with a production-ready Rust + Node environment to bypass installer scripts
-FROM rust:1.80-slim AS rust-env
+# Start directly with a modern Rust environment that satisfies wasm-bindgen's compiler requirements
+FROM rust:1.85-slim AS rust-env
 
 # Bring in Node.js 24 environment securely
 FROM node:24-slim AS builder
