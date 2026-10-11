@@ -38,6 +38,9 @@ RUN pnpm install
 # Copy the rest of the application source code
 COPY . .
 
+# CRITICAL FIX: Turn off Reference Types (anyref) so the post-processors don't fail
+ENV RUSTFLAGS="-C target-feature=-reference-types"
+
 # Execute the compile order required by Scramjet
 RUN cd packages/core && pnpm rewriter:build
 RUN pnpm build
